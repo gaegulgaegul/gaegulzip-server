@@ -1,0 +1,109 @@
+# CodeRabbit Configuration
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: ko-KR
+
+early_access: false
+
+reviews:
+  # 리뷰 스타일: chill, assertive, nitpicky
+  profile: assertive
+
+  # 리뷰 요청 설정
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+
+  # 자동 리뷰
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  # 리뷰 제외 경로
+  path_filters:
+    - "!**/*.lock"
+    - "!**/node_modules/**"
+    - "!**/vendor/**"
+    - "!db/schema.rb"
+    - "!config/credentials.yml.enc"
+    - "!tmp/**"
+    - "!log/**"
+    - "!storage/**"
+    - "!public/assets/**"
+
+  # 리뷰 도구 설정
+  tools:
+    rubocop:
+      enabled: true
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: true
+
+  # 경로별 리뷰 지침
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        ## 🌏 언어 설정 (CRITICAL)
+        모든 리뷰 코멘트는 **반드시 한국어로 작성**해야 합니다.
+
+        ## 커밋 컨벤션
+        - 타입: feat/fix/refactor/test/docs/chore
+        - 구조적 변경(refactor)과 동작적 변경(feat/fix)은 반드시 분리
+
+    - path: "**/*.rb"
+      instructions: |
+        ## Ruby 코드 스타일
+        - 들여쓰기: 2 spaces
+        - 메서드/변수: snake_case, 클래스: PascalCase
+        - guard clause 선호
+        - safe navigation operator (&.) 사용
+
+    - path: "app/controllers/**/*.rb"
+      instructions: |
+        ## Controller 리뷰 지침
+        - Controller는 thin하게 유지
+        - 비즈니스 로직은 Service로 분리
+        - Strong Parameters 필수
+        - 리소스 접근은 반드시 current_user scope 통해서
+        - N+1 쿼리 방지 (includes 사용)
+
+    - path: "app/models/**/*.rb"
+      instructions: |
+        ## Model 리뷰 지침
+        - validation, association, scope만 포함
+        - 복잡한 비즈니스 로직은 Service로 분리
+        - N+1 쿼리 방지 (includes, preload 사용)
+
+    - path: "app/services/**/*.rb"
+      instructions: |
+        ## Service 리뷰 지침
+        - 단일 책임 원칙 준수
+        - Result 객체 반환 권장
+        - 트랜잭션 처리 확인
+
+    - path: "app/views/**/*.erb"
+      instructions: |
+        ## View 보안 리뷰
+        - XSS 방지: 사용자 입력은 반드시 escape
+        - raw/html_safe 사용 시 주의
+
+    - path: "test/**/*.rb"
+      instructions: |
+        ## 테스트 리뷰 지침
+        - TDD 워크플로우 (Red-Green-Refactor) 준수
+        - 모든 public 메서드에 대한 테스트 필수
+        - 의미 있는 테스트명 사용
+        - 테스트 독립성 확인
+
+    - path: "db/migrate/**/*.rb"
+      instructions: |
+        ## Migration 리뷰 지침
+        - 롤백 가능 여부 확인
+        - 인덱스 추가 확인
+        - 대용량 테이블 변경 시 주의
+
+chat:
+  auto_reply: true
