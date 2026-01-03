@@ -1,0 +1,62 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command=$(jq -r '.tool_input.command'); if echo \"$command\" | grep -qE '^git commit'; then cd \"$CLAUDE_PROJECT_DIR\" && rails test --fail-fast 2>/dev/null && rubocop --fail-level E 2>/dev/null || { echo '❌ 테스트 또는 RuboCop 실패. 커밋 전 수정 필요.' >&2; exit 2; }; fi",
+            "timeout": 120000
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file_path=$(jq -r '.tool_input.file_path'); if echo \"$file_path\" | grep -qE '\\.env|credentials|master\\.key|secrets'; then echo '❌ 민감 파일 보호됨: '$file_path >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "content=$(jq -r '.tool_input.content // .tool_input.new_string // \"\"'); file_path=$(jq -r '.tool_input.file_path'); if [[ \"$file_path\" == *.rb ]] && echo \"$content\" | grep -qE 'binding\\.pry|debugger|byebug'; then echo '❌ 디버그 코드 제거 필요: binding.pry, debugger, byebug' >&2; exit 2; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file_path=$(jq -r '.tool_input.file_path'); if [[ \"$file_path\" == *.rb ]]; then rubocop -a \"$file_path\" 2>/dev/null || true; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"작업 완료\" with title \"Claude Code\" sound name \"Glass\"'"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"$CLAUDE_PROJECT_DIR/plan.md\" ]; then echo '📋 TDD 진행 상황:' && grep -E '^- \\[[ x]\\]' \"$CLAUDE_PROJECT_DIR/plan.md\" 2>/dev/null | head -5; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
