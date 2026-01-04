@@ -7,5 +7,5 @@ import org.springframework.boot.runApplication
 class GaegulzipServerApplication
 
 fun main(args: Array<String>) {
-	runApplication<GaegulzipServerApplication>(*args)
+    runApplication<GaegulzipServerApplication>(*args)
 }
