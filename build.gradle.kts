@@ -35,7 +35,7 @@ dependencies {
     runtimeOnly("com.h2database:h2")
 
     // === MCP + Document Reader 추가 ===
-    implementation("org.springframework.ai:spring-ai-bom:1.1.2")
+    implementation(platform("org.springframework.ai:spring-ai-bom:1.1.2"))
     implementation("org.springframework.ai:spring-ai-starter-mcp-server:1.1.2")
 
     // === Modulith ===
