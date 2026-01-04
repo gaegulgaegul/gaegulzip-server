@@ -5,8 +5,6 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     kotlin("plugin.jpa") version "1.9.25"
     jacoco
-    // TODO: Detekt는 Kotlin 버전 호환성 문제로 인해 임시 비활성화
-    // id("io.gitlab.arturbosch.detekt") version "1.23.6"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.1"
 }
 
@@ -35,10 +33,10 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     runtimeOnly("com.h2database:h2")
+
     // === MCP + Document Reader 추가 ===
-    // TODO: Spring AI MCP Server는 아직 레포지토리에 없음 - 필요시 snapshot 레포지토리 추가
-    // implementation(platform("org.springframework.ai:spring-ai-bom:1.0.0-M1"))
-    // implementation("org.springframework.ai:spring-ai-mcp-server-webmvc-spring-boot-starter")
+    implementation("org.springframework.ai:spring-ai-bom:1.1.2")
+    implementation("org.springframework.ai:spring-ai-starter-mcp-server:1.1.2")
 
     // === Modulith ===
     implementation(platform("org.springframework.modulith:spring-modulith-bom:1.1.3"))
@@ -149,30 +147,6 @@ tasks.check {
     dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
-// === Detekt Configuration ===
-// TODO: Detekt는 Kotlin 버전 호환성 문제로 인해 임시 비활성화
-// Kotlin 버전 업그레이드 후 다시 활성화 예정
-
-/*
-detekt {
-	buildUponDefaultConfig = true
-	allRules = false
-	config.setFrom("$projectDir/config/detekt/detekt.yml")
-}
-
-tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
-	jvmTarget = "21"
-
-	reports {
-		html.required.set(true)
-		xml.required.set(true)
-		txt.required.set(true)
-		sarif.required.set(true)
-	}
-}
-*/
-
-// === ktlint Configuration ===
 ktlint {
     version.set("1.0.1")
     android.set(false)
