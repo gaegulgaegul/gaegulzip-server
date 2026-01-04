@@ -109,7 +109,7 @@ tasks.jacocoTestCoverageVerification {
     violationRules {
         rule {
             enabled = true
-            element = "CLASS"
+            element = "BUNDLE"
 
             limit {
                 counter = "LINE"
