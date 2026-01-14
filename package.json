@@ -14,8 +14,10 @@
   "license": "ISC",
   "packageManager": "pnpm@10.27.0",
   "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.8",
+    "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "nodemon": "^3.1.11",
     "ts-node": "^10.9.2",
