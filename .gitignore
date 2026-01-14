@@ -3,3 +3,5 @@
 /dist/
 .env
 .env.*
+/prompt/
+.DS_Store
