@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
 import authRouter from './modules/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -7,6 +9,13 @@ export const app = express();
 
 // Middleware
 app.use(express.json());
+
+// Swagger UI (OpenAPI Documentation)
+const swaggerDocument = YAML.load('./docs/openapi.yaml');
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'gaegulzip-server API',
+}));
 
 // Routes
 app.get('/', (req, res) => {
