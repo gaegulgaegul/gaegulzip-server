@@ -1,0 +1,94 @@
+openapi: 3.0.0
+
+info:
+  title: gaegulzip-server API
+  version: 1.0.0
+  description: gaegulzip-server RESTful API Documentation
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Development server
+  - url: https://api.gaegulzip.com/v1
+    description: Production server
+
+paths:
+  # 여기에 자동 생성된 경로가 추가됩니다
+  # 예시:
+  /example:
+    get:
+      summary: 예시 엔드포인트
+      description: API 엔드포인트 예시
+      tags:
+        - Example
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+        '500':
+          description: 서버 에러
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    # 공통 스키마
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: 에러 메시지
+          example: Invalid request
+      required:
+        - error
+
+    # Pagination
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: 현재 페이지
+          example: 1
+        limit:
+          type: integer
+          description: 페이지당 항목 수
+          example: 10
+        total:
+          type: integer
+          description: 전체 항목 수
+          example: 100
+        totalPages:
+          type: integer
+          description: 전체 페이지 수
+          example: 10
+
+    # 여기에 자동 생성된 스키마가 추가됩니다
+
+  securitySchemes:
+    # 인증 방식 정의 (필요 시)
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer 토큰
+
+tags:
+  - name: Example
+    description: 예시 API
+  # 여기에 자동 생성된 태그가 추가됩니다
+
+# 전역 보안 설정 (필요 시)
+# security:
+#   - bearerAuth: []
