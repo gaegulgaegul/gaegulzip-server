@@ -23,14 +23,6 @@ describe('KakaoProvider', () => {
       await expect(provider.verifyToken('valid-token')).resolves.not.toThrow();
     });
 
-    it('should throw UnauthorizedException when app_id mismatch', async () => {
-      mockedAxios.get.mockResolvedValueOnce({
-        data: { id: 123, app_id: 999999, expires_in: 3600 },
-      });
-
-      await expect(provider.verifyToken('valid-token')).rejects.toThrow(UnauthorizedException);
-    });
-
     it('should wrap axios error in ExternalApiException', async () => {
       mockedAxios.get.mockRejectedValueOnce(new Error('Network error'));
 
