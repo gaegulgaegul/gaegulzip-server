@@ -122,6 +122,45 @@ app.use(errorHandler);  // Error handler must be last
 - Centralize error handling in a single middleware
 - Use custom AppError class for operational errors
 
+**📖 상세 가이드**: [예외 처리 가이드](./.claude/guide/exception-handling.md)
+
+핵심 원칙:
+- **특수값 대신 예외 사용**: -1, null 등으로 오류를 표현하지 말 것
+- **의미 있는 예외 클래스**: `CustomException` 대신 `UserNotFoundException`, `ValidationException` 등 사용
+- **추적 가능한 예외**: 구체적인 값과 작업명을 예외 메시지에 포함
+- **계층별 예외 정의**: `AppException` → `BusinessException` → `ValidationException` 등
+- **외부 SDK 예외 감싸기**: 외부 라이브러리 예외를 내부 예외로 변환하여 의존성 분리
+- **글로벌 핸들러 활용**: 각 핸들러마다 try-catch 하지 말고 전역 에러 핸들러에서 처리
+
+### API Response Design
+
+**📖 상세 가이드**: [API Response 설계 가이드](./.claude/guide/api-response-design.md)
+
+**필드 설계**:
+- **최소 스펙**: 현재 필요한 필드만 포함 (추가는 쉽지만 제거는 Breaking Change)
+- **빈 배열 활용**: 복수형 필드가 비었을 때 `null` 대신 `[]` 반환
+- **Boolean은 2가지 상태**: `true/false`만, `null` 금지 (3가지 상태 필요시 Enum 사용)
+
+**Null 처리** (중요):
+- **Pre-condition 검증**: 진입점에서 null 검증하여 비즈니스 로직을 null-free로
+- **Null 반환 피하기**: 예외 던지기 또는 Null Object Pattern (빈 배열, 기본값) 사용
+- **Non-null 파라미터**: 함수는 가능한 한 null을 받지 않도록 설계
+- **Number/Boolean NOT NULL**: DB 스키마에서 항상 기본값 설정 (nullable은 3-state 문제 유발)
+
+**네이밍**:
+- **camelCase 사용**: 모든 필드명은 camelCase (snake_case 금지)
+- **축약 금지**: `cnt`, `nm` 대신 `count`, `name` 사용
+- **타입별 네이밍**: Boolean(`isActive`), 날짜(`createdAt`), 복수형(`orders`)
+
+**데이터 타입**:
+- **ISO-8601 날짜**: UNIX timestamp 대신 `"2021-05-28T14:07:17Z"` 형식
+- **문자열 Enum**: ordinal(숫자) 대신 `"PENDING"`, `"PAID"` 등 문자열 사용
+- **Enum 우선 사용**: 3가지 이상 상태는 Enum (`AccountStatus.ACTIVE` 등)
+- **Boolean vs Timestamp**: 쿼리 패턴 고려 (Enum/Boolean이 인덱스 성능 우수)
+
+**일관성**:
+- 요청/응답 및 전체 API에서 같은 개념은 같은 이름 사용
+
 ## Drizzle ORM Conventions
 
 ### Schema Definition
@@ -136,6 +175,10 @@ export const users = pgTable('users', {
 });
 ```
 
+### Database Design Rules
+- **테이블 및 컬럼 주석 필수**: 모든 테이블과 컬럼에는 반드시 comment를 추가하여 의미를 명확히 전달
+- **FK 사용 금지**: Foreign Key 제약조건을 사용하지 않음 (애플리케이션 레벨에서 관계 관리)
+
 ### Database Client
 ```typescript
 // src/config/database.ts
@@ -145,6 +188,47 @@ import postgres from 'postgres';
 const client = postgres(process.env.DATABASE_URL!);
 export const db = drizzle(client);
 ```
+
+## Logging Best Practices
+
+**📖 상세 가이드**: [로깅 베스트 프랙티스](./.claude/guide/logging-best-practices.md)
+
+### 로그 레벨 구분
+- **DEBUG**: 개발/디버깅 (운영 환경 비활성화)
+- **INFO**: 정상 작동 기록 (주요 비즈니스 이벤트, 배치 작업 등)
+- **WARN**: 잠재적 문제 (외부 API 실패, 사용자 입력 오류)
+- **ERROR**: 즉시 대응 필요 (DB 연결 실패, 결제 오류, 예상치 못한 예외)
+
+### Domain Probe 패턴
+- **운영 로그(INFO/WARN/ERROR)**: 별도 Probe 모듈(함수들)로 분리
+- **디버그 로그(DEBUG)**: 핸들러 내에서 직접 작성
+- Class 대신 함수 기반, 테스트 가능하고 일관된 로그 포맷 유지
+
+```typescript
+// Handler: 비즈니스 로직 집중
+import * as orderProbe from './order.probe';
+
+export const createOrder = async (req: Request, res: Response) => {
+  logger.debug('Creating order', { data: req.body });
+
+  const [order] = await db.insert(orders).values(req.body).returning();
+
+  orderProbe.created(order);  // 운영 로그
+
+  res.status(201).json(order);
+};
+
+// order.probe.ts: 운영 로그 담당
+export const created = (order: Order) => {
+  logger.info('Order created', { orderId: order.id, amount: order.amount });
+};
+```
+
+### 핵심 원칙
+- 외부 API 실패 → WARN (단, 결제 등 중요 API는 ERROR)
+- 사용자 입력 오류 → WARN (단, 의심 행동은 ERROR)
+- 민감 정보(비밀번호, 토큰) 로깅 금지
+- 충분한 컨텍스트 포함 (ID, 상태, 시간 등)
 
 ## Code Documentation
 
