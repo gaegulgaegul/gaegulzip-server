@@ -1,0 +1,519 @@
+openapi: 3.0.0
+info:
+  title: gaegulzip-server API
+  version: 1.0.0
+  description: |
+    Multi-Provider OAuth Authentication System
+
+    이 API는 카카오, 네이버, 구글, 애플 등 여러 OAuth 제공자를 통한 인증을 지원합니다.
+
+    ## 지원하는 OAuth 제공자
+    - Kakao (카카오)
+    - Naver (네이버) - 예정
+    - Google (구글) - 예정
+    - Apple (애플) - 예정
+
+    ## 인증 플로우
+    1. **Token-based Flow (모바일 앱)**: 모바일 SDK로 발급받은 액세스 토큰 전송
+    2. **Authorization Code Flow (웹)**: OAuth 인가 코드를 통한 표준 플로우
+
+  contact:
+    name: gaegulzip-server Team
+    email: support@gaegulzip.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3001
+    description: 개발 서버
+  - url: https://api.gaegulzip.com
+    description: 프로덕션 서버
+
+tags:
+  - name: Authentication
+    description: OAuth 인증 관련 API
+
+paths:
+  /auth/oauth:
+    post:
+      summary: OAuth 로그인 (토큰 방식)
+      description: |
+        모바일 앱에서 이미 발급받은 OAuth 액세스 토큰으로 로그인합니다.
+
+        ## 사용 시나리오
+        - iOS/Android 앱에서 Kakao SDK로 로그인 후 액세스 토큰 획득
+        - 획득한 토큰을 이 API로 전송하여 서버 JWT 토큰 발급
+
+        ## 프로세스
+        1. 앱 코드로 앱 조회
+        2. OAuth 제공자 크레덴셜 확인
+        3. 액세스 토큰 유효성 검증
+        4. 사용자 정보 조회
+        5. 사용자 저장/업데이트
+        6. JWT 토큰 발급
+      operationId: oauthLogin
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthLoginRequest'
+            examples:
+              kakao:
+                summary: 카카오 로그인 예시
+                value:
+                  code: wowa
+                  provider: kakao
+                  accessToken: mzMEt7vFIdnKEJUuNkaTc30YNqVCwIiLAAAAAQoNIdkAAAGbv280cm1lzvpaqIEo
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                success:
+                  summary: 성공 응답 예시
+                  value:
+                    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImFwcElkIjoxLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJuaWNrbmFtZSI6Iu2Zjeq4uOuPmSIsImlhdCI6MTcwNTMwODAwMCwiZXhwIjoxNzA1OTEyODAwfQ.signature
+                    user:
+                      id: 1
+                      provider: kakao
+                      email: user@example.com
+                      nickname: 홍길동
+                      profileImage: https://k.kakaocdn.net/dn/profile.jpg
+                      appCode: wowa
+                      lastLoginAt: "2026-01-15T10:30:00.000Z"
+        '400':
+          description: 유효성 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                validationError:
+                  summary: 유효성 검증 실패
+                  value:
+                    error:
+                      message: Validation failed
+                      code: VALIDATION_ERROR
+                      details:
+                        - code: invalid_enum_value
+                          message: "Invalid provider. Must be one of: kakao, naver, google, apple"
+                          path: ["provider"]
+                providerNotConfigured:
+                  summary: Provider 미설정
+                  value:
+                    error:
+                      message: "Provider kakao not configured for app wowa"
+                      code: PROVIDER_NOT_CONFIGURED
+        '401':
+          description: 토큰 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidToken:
+                  summary: 유효하지 않은 토큰
+                  value:
+                    error:
+                      message: Invalid access token
+                      code: INVALID_TOKEN
+        '404':
+          description: 앱을 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                appNotFound:
+                  summary: 앱 미존재
+                  value:
+                    error:
+                      message: "App not found: invalid-code"
+                      code: NOT_FOUND
+        '502':
+          description: 외부 API 에러
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                externalApiError:
+                  summary: OAuth 제공자 API 에러
+                  value:
+                    error:
+                      message: "External API error from kakao: Request failed with status code 401"
+                      code: EXTERNAL_API_ERROR
+
+  /auth/oauth/callback:
+    get:
+      summary: OAuth Callback (Authorization Code 방식)
+      description: |
+        웹 브라우저를 통한 OAuth 인가 코드 플로우의 콜백 엔드포인트입니다.
+
+        ## 사용 시나리오
+        1. 사용자를 OAuth 제공자 로그인 페이지로 리다이렉트
+        2. 로그인 성공 시 이 엔드포인트로 인가 코드와 함께 리다이렉트
+        3. 서버에서 인가 코드를 액세스 토큰으로 교환
+        4. 사용자 정보 조회 및 JWT 발급
+        5. HTML 페이지로 결과 표시
+
+        ## 카카오 로그인 URL 예시
+        ```
+        https://kauth.kakao.com/oauth/authorize?
+          client_id=bba5e37e4e979132f70af2b6c7b0ab23&
+          redirect_uri=http://localhost:3001/auth/oauth/callback&
+          response_type=code&
+          state=wowa
+        ```
+      operationId: oauthCallback
+      tags:
+        - Authentication
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: OAuth 제공자로부터 받은 인가 코드
+          schema:
+            type: string
+          example: "abc123def456"
+        - name: state
+          in: query
+          required: false
+          description: 앱 식별 코드 (기본값: wowa)
+          schema:
+            type: string
+            default: wowa
+          example: "wowa"
+      responses:
+        '200':
+          description: 로그인 성공 (HTML 페이지 반환)
+          content:
+            text/html:
+              schema:
+                type: string
+                description: |
+                  로그인 결과를 표시하는 HTML 페이지
+                  - 사용자 정보 (ID, Email, Nickname)
+                  - JWT 토큰
+                  - Kakao 액세스 토큰
+                  - API 테스트용 curl 명령어
+        '400':
+          description: 유효성 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                noCode:
+                  summary: 인가 코드 누락
+                  value:
+                    error:
+                      message: Authorization code is required
+                      code: VALIDATION_ERROR
+                kakaoNotConfigured:
+                  summary: 카카오 미설정
+                  value:
+                    error:
+                      message: Kakao not configured for this app
+                      code: PROVIDER_NOT_CONFIGURED
+        '404':
+          description: 앱을 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: 외부 API 에러 (카카오 토큰 교환 실패 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      summary: 헬스 체크
+      description: 서버 상태 확인
+      operationId: healthCheck
+      tags:
+        - System
+      responses:
+        '200':
+          description: 서버 정상
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: OK
+                  uptime:
+                    type: number
+                    description: 서버 가동 시간 (초)
+                    example: 123.456
+
+components:
+  schemas:
+    OAuthLoginRequest:
+      type: object
+      required:
+        - code
+        - provider
+        - accessToken
+      properties:
+        code:
+          type: string
+          description: 앱 식별 코드
+          pattern: '^[a-z0-9-]+$'
+          example: wowa
+        provider:
+          type: string
+          description: OAuth 제공자
+          enum:
+            - kakao
+            - naver
+            - google
+            - apple
+          example: kakao
+        accessToken:
+          type: string
+          description: OAuth 제공자로부터 발급받은 액세스 토큰
+          minLength: 1
+          example: mzMEt7vFIdnKEJUuNkaTc30YNqVCwIiLAAAAAQoNIdkAAAGbv280cm1lzvpaqIEo
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - user
+      properties:
+        token:
+          type: string
+          description: 서버에서 발급한 JWT 토큰
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      required:
+        - id
+        - provider
+        - appCode
+      properties:
+        id:
+          type: integer
+          description: 사용자 ID (users.id)
+          example: 1
+        provider:
+          type: string
+          description: OAuth 제공자
+          enum:
+            - kakao
+            - naver
+            - google
+            - apple
+          example: kakao
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: 이메일 주소
+          example: user@example.com
+        nickname:
+          type: string
+          nullable: true
+          description: 닉네임
+          example: 홍길동
+        profileImage:
+          type: string
+          format: uri
+          nullable: true
+          description: 프로필 이미지 URL
+          example: https://k.kakaocdn.net/dn/profile.jpg
+        appCode:
+          type: string
+          description: 앱 코드
+          example: wowa
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 마지막 로그인 시간 (ISO 8601)
+          example: "2026-01-15T10:30:00.000Z"
+
+    App:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - jwtSecret
+        - jwtExpiresIn
+        - isActive
+      properties:
+        id:
+          type: integer
+          description: 앱 ID
+          example: 1
+        code:
+          type: string
+          description: 앱 식별 코드
+          example: wowa
+        name:
+          type: string
+          description: 앱 이름
+          example: WOWA Application
+        kakaoRestApiKey:
+          type: string
+          nullable: true
+          description: 카카오 REST API 키
+          example: bba5e37e4e979132f70af2b6c7b0ab23
+        kakaoClientSecret:
+          type: string
+          nullable: true
+          description: 카카오 클라이언트 시크릿
+        naverClientId:
+          type: string
+          nullable: true
+          description: 네이버 클라이언트 ID
+        naverClientSecret:
+          type: string
+          nullable: true
+          description: 네이버 클라이언트 시크릿
+        googleClientId:
+          type: string
+          nullable: true
+          description: 구글 클라이언트 ID
+        googleClientSecret:
+          type: string
+          nullable: true
+          description: 구글 클라이언트 시크릿
+        appleClientId:
+          type: string
+          nullable: true
+          description: 애플 클라이언트 ID
+        appleTeamId:
+          type: string
+          nullable: true
+          description: 애플 팀 ID
+        appleKeyId:
+          type: string
+          nullable: true
+          description: 애플 키 ID
+        applePrivateKey:
+          type: string
+          nullable: true
+          description: 애플 Private Key
+        jwtSecret:
+          type: string
+          description: JWT 서명 시크릿
+        jwtExpiresIn:
+          type: string
+          description: JWT 만료 시간
+          default: "7d"
+          example: "7d"
+        isActive:
+          type: boolean
+          description: 앱 활성화 여부
+          default: true
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+          example: "2026-01-15T10:30:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+          example: "2026-01-15T10:30:00.000Z"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - message
+            - code
+          properties:
+            message:
+              type: string
+              description: 에러 메시지
+              example: Invalid access token
+            code:
+              type: string
+              description: 에러 코드
+              enum:
+                - VALIDATION_ERROR
+                - INVALID_PROVIDER
+                - PROVIDER_NOT_CONFIGURED
+                - INVALID_TOKEN
+                - EXPIRED_TOKEN
+                - TOKEN_VERIFICATION_FAILED
+                - NOT_FOUND
+                - APP_NOT_FOUND
+                - USER_NOT_FOUND
+                - EXTERNAL_API_ERROR
+                - KAKAO_API_ERROR
+                - NAVER_API_ERROR
+                - GOOGLE_API_ERROR
+                - APPLE_API_ERROR
+                - DATABASE_ERROR
+                - INTERNAL_ERROR
+              example: INVALID_TOKEN
+            details:
+              type: array
+              description: 상세 에러 정보 (유효성 검증 실패 시)
+              items:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: invalid_enum_value
+                  message:
+                    type: string
+                    example: "Invalid provider. Must be one of: kakao, naver, google, apple"
+                  path:
+                    type: array
+                    items:
+                      type: string
+                    example: ["provider"]
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT 토큰을 사용한 인증
+
+        ## 사용 방법
+        ```
+        Authorization: Bearer <JWT_TOKEN>
+        ```
+
+        ## JWT 페이로드
+        ```json
+        {
+          "sub": 1,           // users.id (JWT 표준)
+          "appId": 1,         // apps.id
+          "email": "user@example.com",
+          "nickname": "홍길동",
+          "iat": 1705308000,  // 발급 시간
+          "exp": 1705912800   // 만료 시간
+        }
+        ```
+
+# 향후 보호된 엔드포인트에 적용할 보안 설정 예시
+# security:
+#   - BearerAuth: []
