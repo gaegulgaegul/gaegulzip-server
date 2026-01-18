@@ -19,3 +19,28 @@ export const oauthLoginSchema = z.object({
  * OAuth 로그인 요청 타입
  */
 export type OAuthLoginRequest = z.infer<typeof oauthLoginSchema>;
+
+/**
+ * Refresh Token 요청 스키마
+ */
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
+
+/**
+ * Refresh Token 요청 타입
+ */
+export type RefreshTokenRequest = z.infer<typeof refreshTokenSchema>;
+
+/**
+ * Logout 요청 스키마
+ */
+export const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+  revokeAll: z.boolean().optional().default(false),
+});
+
+/**
+ * Logout 요청 타입
+ */
+export type LogoutRequest = z.infer<typeof logoutSchema>;
