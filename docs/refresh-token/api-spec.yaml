@@ -1,0 +1,475 @@
+openapi: 3.0.3
+info:
+  title: gaegulzip-server Auth API
+  description: |
+    OAuth 인증 및 Refresh Token 관리 API
+
+    ## 주요 기능
+    - OAuth 2.0 로그인 (Kakao, Naver, Google, Apple)
+    - JWT Access Token 발급
+    - Refresh Token 기반 Access Token 갱신
+    - Token Rotation 및 Reuse Detection
+    - 로그아웃 (Token 무효화)
+
+    ## 인증 흐름
+    1. OAuth Provider로부터 Access Token 획득
+    2. `POST /auth/oauth`로 로그인 (Access Token + Refresh Token 발급)
+    3. Access Token 만료 시 `POST /auth/refresh`로 갱신
+    4. 로그아웃 시 `POST /auth/logout`으로 Refresh Token 무효화
+
+    ## 보안 특징
+    - Refresh Token Rotation: 갱신 시 새로운 Refresh Token 발급
+    - Reuse Detection: 재사용된 Refresh Token 감지 시 전체 Token Family 무효화
+    - bcrypt 해시: Refresh Token은 해시 후 저장
+  version: 1.0.0
+  contact:
+    name: gaegulzip-server Team
+servers:
+  - url: http://localhost:3001
+    description: Local development server
+
+tags:
+  - name: auth
+    description: 인증 및 토큰 관리
+
+paths:
+  /auth/oauth:
+    post:
+      tags:
+        - auth
+      summary: OAuth 로그인
+      description: |
+        OAuth Provider의 Access Token으로 로그인하여 JWT Access Token과 Refresh Token을 발급받습니다.
+
+        **지원 Provider:**
+        - kakao
+        - naver (향후)
+        - google (향후)
+        - apple (향후)
+
+        **처리 과정:**
+        1. 앱 코드로 앱 조회
+        2. OAuth Provider의 Access Token 검증
+        3. 사용자 정보 조회 및 저장/업데이트
+        4. JWT Access Token 생성 (만료: 30분)
+        5. Refresh Token 생성 (만료: 14일)
+        6. Refresh Token을 bcrypt 해시 후 DB 저장
+      operationId: oauthLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - provider
+                - accessToken
+              properties:
+                code:
+                  type: string
+                  description: 앱 코드 (예: wowa)
+                  pattern: ^[a-z0-9-]+$
+                  example: wowa
+                provider:
+                  type: string
+                  description: OAuth 제공자
+                  enum:
+                    - kakao
+                    - naver
+                    - google
+                    - apple
+                  example: kakao
+                accessToken:
+                  type: string
+                  description: OAuth Provider로부터 받은 Access Token
+                  minLength: 1
+                  example: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - accessToken
+                  - refreshToken
+                  - tokenType
+                  - expiresIn
+                  - user
+                  - token
+                properties:
+                  accessToken:
+                    type: string
+                    description: JWT Access Token
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refreshToken:
+                    type: string
+                    description: Refresh Token (14일 만료)
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  tokenType:
+                    type: string
+                    description: Token 타입
+                    enum:
+                      - Bearer
+                    example: Bearer
+                  expiresIn:
+                    type: integer
+                    description: Access Token 만료 시간 (초)
+                    example: 1800
+                  user:
+                    type: object
+                    required:
+                      - id
+                      - provider
+                      - appCode
+                      - lastLoginAt
+                    properties:
+                      id:
+                        type: integer
+                        description: 사용자 ID
+                        example: 1
+                      provider:
+                        type: string
+                        description: OAuth 제공자
+                        example: kakao
+                      email:
+                        type: string
+                        nullable: true
+                        description: 이메일 (제공자가 제공하지 않을 수 있음)
+                        example: user@example.com
+                      nickname:
+                        type: string
+                        nullable: true
+                        description: 닉네임
+                        example: 홍길동
+                      profileImage:
+                        type: string
+                        nullable: true
+                        description: 프로필 이미지 URL
+                        example: https://example.com/profile.jpg
+                      appCode:
+                        type: string
+                        description: 앱 코드
+                        example: wowa
+                      lastLoginAt:
+                        type: string
+                        format: date-time
+                        description: 마지막 로그인 시간 (ISO-8601)
+                        example: '2021-05-28T14:07:17Z'
+                  token:
+                    type: string
+                    description: (Deprecated) 하위 호환성을 위한 필드 (accessToken과 동일)
+                    deprecated: true
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '502':
+          $ref: '#/components/responses/ExternalApiError'
+
+  /auth/oauth/callback:
+    get:
+      tags:
+        - auth
+      summary: OAuth Callback (카카오 Authorization Code 방식)
+      description: |
+        카카오 OAuth 2.0 Authorization Code 방식의 콜백 엔드포인트입니다.
+
+        **처리 과정:**
+        1. 카카오로부터 인가 코드(code) 수신
+        2. 인가 코드를 Access Token으로 교환
+        3. OAuth 로그인 처리 (사용자 정보 조회/저장, JWT 발급)
+        4. HTML 페이지로 토큰 정보 표시
+
+        **참고:** 이 엔드포인트는 카카오 Developer Console의 Redirect URI에 등록되어야 합니다.
+      operationId: oauthCallback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: 카카오로부터 받은 인가 코드
+          schema:
+            type: string
+          example: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+        - name: state
+          in: query
+          required: false
+          description: 앱 코드 (기본값: wowa)
+          schema:
+            type: string
+            default: wowa
+          example: wowa
+      responses:
+        '200':
+          description: 로그인 성공 (HTML 페이지)
+          content:
+            text/html:
+              schema:
+                type: string
+                description: |
+                  로그인 성공 페이지 HTML
+                  - 사용자 정보
+                  - Access Token (JWT)
+                  - Refresh Token
+                  - Kakao Access Token
+                  - API 테스트 예제
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '502':
+          $ref: '#/components/responses/ExternalApiError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - auth
+      summary: Access Token 갱신
+      description: |
+        Refresh Token을 사용하여 새로운 Access Token을 발급받습니다.
+
+        **Token Rotation:**
+        - 요청한 Refresh Token은 즉시 무효화 (revoked = true)
+        - 새로운 Refresh Token 발급
+        - 같은 Token Family ID 유지
+
+        **Reuse Detection:**
+        - 이미 무효화된 Refresh Token이 재사용되면 전체 Token Family 무효화
+        - Grace Period (5초) 내 재사용은 허용 (네트워크 지연 고려)
+
+        **보안:**
+        - Refresh Token은 JWT 형태이며 서버에서 서명 검증
+        - DB에서 jti(JWT ID)로 조회하여 만료/무효화 여부 확인
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh Token
+                  minLength: 1
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Access Token 갱신 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - accessToken
+                  - refreshToken
+                  - tokenType
+                  - expiresIn
+                properties:
+                  accessToken:
+                    type: string
+                    description: 새로운 JWT Access Token
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refreshToken:
+                    type: string
+                    description: 새로운 Refresh Token (14일 만료)
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  tokenType:
+                    type: string
+                    description: Token 타입
+                    enum:
+                      - Bearer
+                    example: Bearer
+                  expiresIn:
+                    type: integer
+                    description: Access Token 만료 시간 (초)
+                    example: 1800
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidToken:
+                  summary: 잘못된 Refresh Token
+                  value:
+                    error: UnauthorizedException
+                    message: Invalid refresh token
+                    code: INVALID_REFRESH_TOKEN
+                    timestamp: '2021-05-28T14:07:17Z'
+                tokenNotFound:
+                  summary: Refresh Token이 DB에 없음
+                  value:
+                    error: UnauthorizedException
+                    message: Refresh token not found
+                    code: REFRESH_TOKEN_NOT_FOUND
+                    timestamp: '2021-05-28T14:07:17Z'
+                tokenExpired:
+                  summary: Refresh Token 만료
+                  value:
+                    error: UnauthorizedException
+                    message: Refresh token expired
+                    code: REFRESH_TOKEN_EXPIRED
+                    timestamp: '2021-05-28T14:07:17Z'
+                tokenRevoked:
+                  summary: 이미 사용된 Refresh Token (Grace Period 내)
+                  value:
+                    error: UnauthorizedException
+                    message: Refresh token already used
+                    code: REFRESH_TOKEN_REVOKED
+                    timestamp: '2021-05-28T14:07:17Z'
+                tokenReuseDetected:
+                  summary: Refresh Token 재사용 감지 (전체 Token Family 무효화)
+                  value:
+                    error: UnauthorizedException
+                    message: Refresh token reuse detected. All tokens have been revoked.
+                    code: REFRESH_TOKEN_REUSE_DETECTED
+                    timestamp: '2021-05-28T14:07:17Z'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /auth/logout:
+    post:
+      tags:
+        - auth
+      summary: 로그아웃 (Refresh Token 무효화)
+      description: |
+        Refresh Token을 무효화하여 로그아웃합니다.
+
+        **옵션:**
+        - `revokeAll=false` (기본): 현재 Refresh Token만 무효화
+        - `revokeAll=true`: 해당 사용자의 모든 Refresh Token 무효화 (모든 기기에서 로그아웃)
+
+        **멱등성:**
+        - 이미 무효화된 Refresh Token으로 요청해도 204 반환
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh Token
+                  minLength: 1
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                revokeAll:
+                  type: boolean
+                  description: 모든 Refresh Token 무효화 여부 (기본값: false)
+                  default: false
+                  example: false
+      responses:
+        '204':
+          description: 로그아웃 성공 (No Content)
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidToken:
+                  summary: 잘못된 Refresh Token
+                  value:
+                    error: UnauthorizedException
+                    message: Invalid refresh token
+                    code: INVALID_REFRESH_TOKEN
+                    timestamp: '2021-05-28T14:07:17Z'
+                tokenNotFound:
+                  summary: Refresh Token이 DB에 없음
+                  value:
+                    error: UnauthorizedException
+                    message: Refresh token not found
+                    code: REFRESH_TOKEN_NOT_FOUND
+                    timestamp: '2021-05-28T14:07:17Z'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: 에러 클래스명
+          example: ValidationException
+        message:
+          type: string
+          description: 에러 메시지
+          example: Invalid app code format
+        code:
+          type: string
+          description: 에러 코드 (선택적)
+          example: INVALID_REFRESH_TOKEN
+        timestamp:
+          type: string
+          format: date-time
+          description: 에러 발생 시간 (ISO-8601)
+          example: '2021-05-28T14:07:17Z'
+
+  responses:
+    ValidationError:
+      description: Validation Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: ValidationException
+            message: Invalid app code format
+            timestamp: '2021-05-28T14:07:17Z'
+
+    NotFoundError:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: NotFoundException
+            message: App not found
+            timestamp: '2021-05-28T14:07:17Z'
+
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: UnauthorizedException
+            message: Invalid access token
+            code: INVALID_ACCESS_TOKEN
+            timestamp: '2021-05-28T14:07:17Z'
+
+    ExternalApiError:
+      description: External API Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: ExternalApiException
+            message: Failed to call kakao API
+            timestamp: '2021-05-28T14:07:17Z'
