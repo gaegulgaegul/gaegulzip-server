@@ -52,8 +52,33 @@ export const oauthLogin = async (req: Request, res: Response) => {
       restApiKey: app.kakaoRestApiKey,
       clientSecret: app.kakaoClientSecret,
     };
+  } else if (provider === 'naver') {
+    if (!app.naverClientId || !app.naverClientSecret) {
+      throw new ValidationException(`Provider ${provider} not configured for app ${code}`);
+    }
+    credentials.naver = {
+      clientId: app.naverClientId,
+      clientSecret: app.naverClientSecret,
+    };
+  } else if (provider === 'google') {
+    if (!app.googleClientId || !app.googleClientSecret) {
+      throw new ValidationException(`Provider ${provider} not configured for app ${code}`);
+    }
+    credentials.google = {
+      clientId: app.googleClientId,
+      clientSecret: app.googleClientSecret,
+    };
+  } else if (provider === 'apple') {
+    if (!app.appleClientId || !app.appleTeamId || !app.appleKeyId || !app.applePrivateKey) {
+      throw new ValidationException(`Provider ${provider} not configured for app ${code}`);
+    }
+    credentials.apple = {
+      clientId: app.appleClientId,
+      teamId: app.appleTeamId,
+      keyId: app.appleKeyId,
+      privateKey: app.applePrivateKey,
+    };
   }
-  // 향후 naver, google, apple 추가
 
   const oauthProvider = createOAuthProvider(provider, credentials);
 
