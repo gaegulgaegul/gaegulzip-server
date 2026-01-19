@@ -1,5 +1,8 @@
 import { IOAuthProvider } from './base';
 import { KakaoProvider } from './kakao';
+import { NaverProvider } from './naver';
+import { GoogleProvider } from './google';
+import { AppleProvider } from './apple';
 import { ValidationException } from '../../../utils/errors';
 
 /**
@@ -10,7 +13,20 @@ interface ProviderCredentials {
     restApiKey: string;
     clientSecret: string;
   };
-  // 향후 추가: naver, google, apple
+  naver?: {
+    clientId: string;
+    clientSecret: string;
+  };
+  google?: {
+    clientId: string;
+    clientSecret: string;
+  };
+  apple?: {
+    clientId: string;
+    teamId: string;
+    keyId: string;
+    privateKey: string;
+  };
 }
 
 /**
@@ -34,7 +50,34 @@ export function createOAuthProvider(
         credentials.kakao.clientSecret
       );
 
-    // 향후 추가: case 'naver', 'google', 'apple'
+    case 'naver':
+      if (!credentials.naver) {
+        throw new ValidationException('Naver credentials not configured');
+      }
+      return new NaverProvider(
+        credentials.naver.clientId,
+        credentials.naver.clientSecret
+      );
+
+    case 'google':
+      if (!credentials.google) {
+        throw new ValidationException('Google credentials not configured');
+      }
+      return new GoogleProvider(
+        credentials.google.clientId,
+        credentials.google.clientSecret
+      );
+
+    case 'apple':
+      if (!credentials.apple) {
+        throw new ValidationException('Apple credentials not configured');
+      }
+      return new AppleProvider(
+        credentials.apple.clientId,
+        credentials.apple.teamId,
+        credentials.apple.keyId,
+        credentials.apple.privateKey
+      );
 
     default:
       throw new ValidationException(`Unsupported provider: ${provider}`);
