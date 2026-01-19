@@ -32,6 +32,8 @@ servers:
 tags:
   - name: Authentication
     description: OAuth 인증 관련 API
+  - name: Push Notifications
+    description: 푸시 알림 관련 API (FCM)
 
 paths:
   /auth/oauth:
@@ -264,6 +266,209 @@ paths:
                     type: number
                     description: 서버 가동 시간 (초)
                     example: 123.456
+
+  /push/devices:
+    post:
+      summary: 디바이스 토큰 등록
+      description: |
+        FCM 디바이스 토큰을 등록합니다. 이미 등록된 토큰인 경우 업데이트됩니다.
+
+        **인증 필요**: JWT Bearer 토큰
+      operationId: registerDevice
+      tags:
+        - Push Notifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+      responses:
+        '201':
+          description: 디바이스 토큰 등록 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    get:
+      summary: 디바이스 목록 조회
+      description: |
+        사용자의 등록된 디바이스 목록을 조회합니다.
+
+        **인증 필요**: JWT Bearer 토큰
+      operationId: listDevices
+      tags:
+        - Push Notifications
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 디바이스 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /push/devices/{id}:
+    delete:
+      summary: 디바이스 토큰 비활성화
+      description: |
+        디바이스 토큰을 비활성화합니다.
+
+        **인증 필요**: JWT Bearer 토큰
+      operationId: deactivateDevice
+      tags:
+        - Push Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 디바이스 ID
+      responses:
+        '204':
+          description: 디바이스 비활성화 성공
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /push/send:
+    post:
+      summary: 푸시 알림 발송
+      description: |
+        FCM을 통해 푸시 알림을 발송합니다. (관리자용)
+
+        **타겟 타입**:
+        - `단일 사용자`: userId 지정
+        - `다중 사용자`: userIds 배열 지정
+        - `전체 발송`: targetType='all' 지정
+      operationId: sendPush
+      tags:
+        - Push Notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/SendPushSingleRequest'
+                - $ref: '#/components/schemas/SendPushMultipleRequest'
+                - $ref: '#/components/schemas/SendPushAllRequest'
+            examples:
+              single:
+                summary: 단일 사용자
+                value:
+                  appCode: wowa
+                  userId: 123
+                  title: 새 메시지
+                  body: 메시지가 도착했습니다
+                  data:
+                    type: message
+                    id: "456"
+              multiple:
+                summary: 다중 사용자
+                value:
+                  appCode: wowa
+                  userIds: [123, 456, 789]
+                  title: 이벤트 알림
+                  body: 이벤트가 1시간 후 시작됩니다
+              all:
+                summary: 전체 발송
+                value:
+                  appCode: wowa
+                  targetType: all
+                  title: 공지사항
+                  body: 서버 점검 예정
+      responses:
+        '200':
+          description: 푸시 발송 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendPushResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /push/notifications:
+    get:
+      summary: 푸시 알림 이력 조회
+      description: 앱의 푸시 알림 발송 이력을 조회합니다.
+      operationId: listAlerts
+      tags:
+        - Push Notifications
+      parameters:
+        - name: appCode
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 앱 코드
+          example: wowa
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+          description: 조회 개수
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: 오프셋
+      responses:
+        '200':
+          description: 푸시 이력 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertListResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /push/notifications/{id}:
+    get:
+      summary: 푸시 알림 상세 조회
+      description: 푸시 알림 발송 상세 정보를 조회합니다.
+      operationId: getAlert
+      tags:
+        - Push Notifications
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Alert ID
+        - name: appCode
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 앱 코드
+          example: wowa
+      responses:
+        '200':
+          description: 푸시 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
 
 components:
   schemas:
@@ -499,6 +704,10 @@ components:
                 - APPLE_API_ERROR
                 - DATABASE_ERROR
                 - INTERNAL_ERROR
+                - FCM_NOT_CONFIGURED
+                - DEVICE_TOKEN_INVALID
+                - PUSH_SEND_FAILED
+                - INVALID_TARGET_SPECIFICATION
               example: INVALID_TOKEN
             details:
               type: array
@@ -517,6 +726,319 @@ components:
                     items:
                       type: string
                     example: ["provider"]
+
+    # Push Notifications Schemas
+    RegisterDeviceRequest:
+      type: object
+      required:
+        - token
+        - platform
+      properties:
+        token:
+          type: string
+          maxLength: 500
+          description: FCM 디바이스 토큰
+          example: "fGbVXj5hQUa..."
+        platform:
+          type: string
+          enum: [ios, android, web]
+          description: 플랫폼
+          example: ios
+        deviceId:
+          type: string
+          maxLength: 255
+          description: 디바이스 고유 ID (선택)
+          example: "iPhone-12-ABC123"
+
+    DeviceResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 디바이스 ID
+          example: 1
+        token:
+          type: string
+          description: FCM 디바이스 토큰
+          example: "fGbVXj5hQUa..."
+        platform:
+          type: string
+          description: 플랫폼
+          example: ios
+        isActive:
+          type: boolean
+          description: 활성 상태
+          example: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 마지막 사용 시간
+          example: "2026-01-18T10:30:00.000Z"
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 생성 시간
+          example: "2026-01-18T10:30:00.000Z"
+
+    DeviceListResponse:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeviceResponse'
+
+    SendPushSingleRequest:
+      type: object
+      required:
+        - appCode
+        - userId
+        - title
+        - body
+      properties:
+        appCode:
+          type: string
+          description: 앱 코드
+          example: wowa
+        userId:
+          type: integer
+          description: 대상 사용자 ID
+          example: 123
+        title:
+          type: string
+          maxLength: 255
+          description: 알림 제목
+          example: "새 메시지"
+        body:
+          type: string
+          maxLength: 1000
+          description: 알림 본문
+          example: "메시지가 도착했습니다"
+        data:
+          type: object
+          additionalProperties: true
+          description: 커스텀 데이터
+          example:
+            type: message
+            id: "456"
+        imageUrl:
+          type: string
+          format: uri
+          maxLength: 500
+          description: 이미지 URL
+          example: "https://example.com/image.jpg"
+
+    SendPushMultipleRequest:
+      type: object
+      required:
+        - appCode
+        - userIds
+        - title
+        - body
+      properties:
+        appCode:
+          type: string
+          description: 앱 코드
+          example: wowa
+        userIds:
+          type: array
+          items:
+            type: integer
+          description: 대상 사용자 ID 목록
+          example: [123, 456, 789]
+        title:
+          type: string
+          maxLength: 255
+          description: 알림 제목
+          example: "이벤트 알림"
+        body:
+          type: string
+          maxLength: 1000
+          description: 알림 본문
+          example: "이벤트가 1시간 후 시작됩니다"
+        data:
+          type: object
+          additionalProperties: true
+          description: 커스텀 데이터
+        imageUrl:
+          type: string
+          format: uri
+          maxLength: 500
+          description: 이미지 URL
+
+    SendPushAllRequest:
+      type: object
+      required:
+        - appCode
+        - targetType
+        - title
+        - body
+      properties:
+        appCode:
+          type: string
+          description: 앱 코드
+          example: wowa
+        targetType:
+          type: string
+          enum: [all]
+          description: 타겟 타입 (전체 발송)
+          example: all
+        title:
+          type: string
+          maxLength: 255
+          description: 알림 제목
+          example: "공지사항"
+        body:
+          type: string
+          maxLength: 1000
+          description: 알림 본문
+          example: "서버 점검 예정"
+        data:
+          type: object
+          additionalProperties: true
+          description: 커스텀 데이터
+        imageUrl:
+          type: string
+          format: uri
+          maxLength: 500
+          description: 이미지 URL
+
+    SendPushResponse:
+      type: object
+      properties:
+        alertId:
+          type: integer
+          description: Alert ID
+          example: 1
+        sentCount:
+          type: integer
+          description: 발송 성공 개수
+          example: 3
+        failedCount:
+          type: integer
+          description: 발송 실패 개수
+          example: 0
+        status:
+          type: string
+          description: 발송 상태
+          example: completed
+
+    AlertListResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              title:
+                type: string
+                example: "새 메시지"
+              targetType:
+                type: string
+                example: single
+              sentCount:
+                type: integer
+                example: 1
+              failedCount:
+                type: integer
+                example: 0
+              status:
+                type: string
+                example: completed
+              sentAt:
+                type: string
+                format: date-time
+                nullable: true
+                example: "2026-01-18T10:30:00.000Z"
+              createdAt:
+                type: string
+                format: date-time
+                nullable: true
+                example: "2026-01-18T10:30:00.000Z"
+        total:
+          type: integer
+          description: 전체 개수
+          example: 150
+
+    AlertDetailResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "새 메시지"
+        body:
+          type: string
+          example: "메시지가 도착했습니다"
+        data:
+          type: object
+          additionalProperties: true
+          example:
+            type: message
+            id: "456"
+        imageUrl:
+          type: string
+          nullable: true
+          example: "https://example.com/image.jpg"
+        targetType:
+          type: string
+          example: single
+        targetUserIds:
+          type: array
+          items:
+            type: integer
+          example: []
+        sentCount:
+          type: integer
+          example: 1
+        failedCount:
+          type: integer
+          example: 0
+        status:
+          type: string
+          example: completed
+        errorMessage:
+          type: string
+          nullable: true
+          example: null
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-01-18T10:30:00.000Z"
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-01-18T10:30:00.000Z"
+
+  responses:
+    UnauthorizedError:
+      description: 인증 실패
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: 유효성 검증 실패
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFoundError:
+      description: 리소스를 찾을 수 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
 
   securitySchemes:
     BearerAuth:

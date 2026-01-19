@@ -18,6 +18,16 @@ export async function findAppByCode(code: string) {
 }
 
 /**
+ * 앱 ID로 앱 조회
+ * @param id - 조회할 앱 ID
+ * @returns 앱 객체 또는 null
+ */
+export async function findAppById(id: number) {
+  const result = await db.select().from(apps).where(eq(apps.id, id)).limit(1);
+  return result[0] || null;
+}
+
+/**
  * 사용자 생성 또는 업데이트 (멀티 제공자 지원)
  * @param data - 사용자 데이터 (appId, provider, providerId, email, nickname, profileImage)
  * @returns 생성 또는 업데이트된 사용자 객체
