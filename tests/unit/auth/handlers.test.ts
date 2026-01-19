@@ -264,6 +264,238 @@ describe('oauthLogin handler', () => {
       reason: 'Token verification failed',
     });
   });
+
+  it('should handle Naver login successfully', async () => {
+    vi.mocked(oauthLoginSchema.parse).mockReturnValue({
+      code: 'test-app',
+      provider: 'naver',
+      accessToken: 'naver-token',
+    });
+
+    vi.mocked(findAppByCode).mockResolvedValue({
+      id: 1,
+      code: 'test-app',
+      name: 'Test App',
+      naverClientId: 'naver-client-id',
+      naverClientSecret: 'naver-secret',
+      jwtSecret: 'jwt-secret',
+      jwtExpiresIn: '7d',
+      accessTokenExpiresIn: '30m',
+      refreshTokenExpiresIn: '14d',
+    } as any);
+
+    vi.mocked(createOAuthProvider).mockReturnValue(mockProvider);
+
+    mockProvider.verifyToken.mockResolvedValue(undefined);
+    mockProvider.getUserInfo.mockResolvedValue({
+      providerId: 'naver-123',
+      email: 'test@naver.com',
+      nickname: '네이버사용자',
+      profileImage: 'https://naver.com/image.jpg',
+    });
+
+    vi.mocked(upsertUser).mockResolvedValue({
+      id: 1,
+      appId: 1,
+      provider: 'naver',
+      providerId: 'naver-123',
+      email: 'test@naver.com',
+      nickname: '네이버사용자',
+      profileImage: 'https://naver.com/image.jpg',
+      lastLoginAt: new Date(),
+    } as any);
+
+    vi.mocked(generateJWT).mockReturnValue('mock-jwt-token');
+    vi.mocked(generateRefreshToken).mockResolvedValue({
+      refreshToken: 'mock-refresh-token',
+      jti: 'refresh-jti-123',
+      tokenFamily: 'family-123',
+    });
+
+    await oauthLogin(req as Request, res as Response);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      user: expect.objectContaining({
+        provider: 'naver',
+      }),
+    }));
+  });
+
+  it('should throw ValidationException when Naver credentials not configured', async () => {
+    vi.mocked(oauthLoginSchema.parse).mockReturnValue({
+      code: 'test-app',
+      provider: 'naver',
+      accessToken: 'naver-token',
+    });
+
+    vi.mocked(findAppByCode).mockResolvedValue({
+      id: 1,
+      code: 'test-app',
+      name: 'Test App',
+      naverClientId: null,
+      naverClientSecret: null,
+      jwtSecret: 'jwt-secret',
+      jwtExpiresIn: '7d',
+    } as any);
+
+    await expect(oauthLogin(req as Request, res as Response)).rejects.toThrow(ValidationException);
+  });
+
+  it('should handle Google login successfully', async () => {
+    vi.mocked(oauthLoginSchema.parse).mockReturnValue({
+      code: 'test-app',
+      provider: 'google',
+      accessToken: 'google-token',
+    });
+
+    vi.mocked(findAppByCode).mockResolvedValue({
+      id: 1,
+      code: 'test-app',
+      name: 'Test App',
+      googleClientId: 'google-client-id',
+      googleClientSecret: 'google-secret',
+      jwtSecret: 'jwt-secret',
+      jwtExpiresIn: '7d',
+      accessTokenExpiresIn: '30m',
+      refreshTokenExpiresIn: '14d',
+    } as any);
+
+    vi.mocked(createOAuthProvider).mockReturnValue(mockProvider);
+
+    mockProvider.verifyToken.mockResolvedValue(undefined);
+    mockProvider.getUserInfo.mockResolvedValue({
+      providerId: 'google-123',
+      email: 'test@gmail.com',
+      nickname: 'Google User',
+      profileImage: 'https://google.com/image.jpg',
+    });
+
+    vi.mocked(upsertUser).mockResolvedValue({
+      id: 1,
+      appId: 1,
+      provider: 'google',
+      providerId: 'google-123',
+      email: 'test@gmail.com',
+      nickname: 'Google User',
+      profileImage: 'https://google.com/image.jpg',
+      lastLoginAt: new Date(),
+    } as any);
+
+    vi.mocked(generateJWT).mockReturnValue('mock-jwt-token');
+    vi.mocked(generateRefreshToken).mockResolvedValue({
+      refreshToken: 'mock-refresh-token',
+      jti: 'refresh-jti-123',
+      tokenFamily: 'family-123',
+    });
+
+    await oauthLogin(req as Request, res as Response);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      user: expect.objectContaining({
+        provider: 'google',
+      }),
+    }));
+  });
+
+  it('should throw ValidationException when Google credentials not configured', async () => {
+    vi.mocked(oauthLoginSchema.parse).mockReturnValue({
+      code: 'test-app',
+      provider: 'google',
+      accessToken: 'google-token',
+    });
+
+    vi.mocked(findAppByCode).mockResolvedValue({
+      id: 1,
+      code: 'test-app',
+      name: 'Test App',
+      googleClientId: null,
+      googleClientSecret: null,
+      jwtSecret: 'jwt-secret',
+      jwtExpiresIn: '7d',
+    } as any);
+
+    await expect(oauthLogin(req as Request, res as Response)).rejects.toThrow(ValidationException);
+  });
+
+  it('should handle Apple login successfully', async () => {
+    vi.mocked(oauthLoginSchema.parse).mockReturnValue({
+      code: 'test-app',
+      provider: 'apple',
+      accessToken: 'apple-id-token',
+    });
+
+    vi.mocked(findAppByCode).mockResolvedValue({
+      id: 1,
+      code: 'test-app',
+      name: 'Test App',
+      appleClientId: 'com.example.app',
+      appleTeamId: 'TEAM123',
+      appleKeyId: 'KEY123',
+      applePrivateKey: 'private-key',
+      jwtSecret: 'jwt-secret',
+      jwtExpiresIn: '7d',
+      accessTokenExpiresIn: '30m',
+      refreshTokenExpiresIn: '14d',
+    } as any);
+
+    vi.mocked(createOAuthProvider).mockReturnValue(mockProvider);
+
+    mockProvider.verifyToken.mockResolvedValue(undefined);
+    mockProvider.getUserInfo.mockResolvedValue({
+      providerId: 'apple-123',
+      email: 'test@icloud.com',
+      nickname: null,
+      profileImage: null,
+    });
+
+    vi.mocked(upsertUser).mockResolvedValue({
+      id: 1,
+      appId: 1,
+      provider: 'apple',
+      providerId: 'apple-123',
+      email: 'test@icloud.com',
+      nickname: null,
+      profileImage: null,
+      lastLoginAt: new Date(),
+    } as any);
+
+    vi.mocked(generateJWT).mockReturnValue('mock-jwt-token');
+    vi.mocked(generateRefreshToken).mockResolvedValue({
+      refreshToken: 'mock-refresh-token',
+      jti: 'refresh-jti-123',
+      tokenFamily: 'family-123',
+    });
+
+    await oauthLogin(req as Request, res as Response);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      user: expect.objectContaining({
+        provider: 'apple',
+      }),
+    }));
+  });
+
+  it('should throw ValidationException when Apple credentials not configured', async () => {
+    vi.mocked(oauthLoginSchema.parse).mockReturnValue({
+      code: 'test-app',
+      provider: 'apple',
+      accessToken: 'apple-id-token',
+    });
+
+    vi.mocked(findAppByCode).mockResolvedValue({
+      id: 1,
+      code: 'test-app',
+      name: 'Test App',
+      appleClientId: null,
+      appleTeamId: null,
+      appleKeyId: null,
+      applePrivateKey: null,
+      jwtSecret: 'jwt-secret',
+      jwtExpiresIn: '7d',
+    } as any);
+
+    await expect(oauthLogin(req as Request, res as Response)).rejects.toThrow(ValidationException);
+  });
 });
 
 describe('refreshToken handler', () => {
