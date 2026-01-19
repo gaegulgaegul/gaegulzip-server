@@ -26,6 +26,14 @@ export const apps = pgTable('apps', {
   appleKeyId: varchar('apple_key_id', { length: 255 }),
   applePrivateKey: varchar('apple_private_key'),
 
+  // Firebase Cloud Messaging (FCM)
+  /** Firebase 프로젝트 ID */
+  fcmProjectId: varchar('fcm_project_id', { length: 255 }),
+  /** Firebase Service Account Private Key (JSON 문자열) */
+  fcmPrivateKey: varchar('fcm_private_key'),
+  /** Firebase Service Account Client Email */
+  fcmClientEmail: varchar('fcm_client_email', { length: 255 }),
+
   jwtSecret: varchar('jwt_secret', { length: 255 }).notNull(),
   jwtExpiresIn: varchar('jwt_expires_in', { length: 20 }).notNull().default('7d'),
 
