@@ -42,3 +42,52 @@ export interface KakaoUserInfo {
     profile_image?: string;
   };
 }
+
+/**
+ * 네이버 사용자 정보 응답 타입
+ */
+export interface NaverUserInfo {
+  resultcode: string;
+  message: string;
+  response: {
+    id: string;
+    email?: string;
+    nickname?: string;
+    profile_image?: string;
+  };
+}
+
+/**
+ * 구글 토큰 정보 응답 타입
+ */
+export interface GoogleTokenInfo {
+  issued_to: string;
+  audience: string;
+  user_id: string;
+  scope: string;
+  expires_in: number;
+}
+
+/**
+ * 구글 사용자 정보 응답 타입
+ */
+export interface GoogleUserInfo {
+  id: string;
+  email?: string;
+  verified_email?: boolean;
+  name?: string;
+  picture?: string;
+}
+
+/**
+ * 애플 ID Token 페이로드 타입
+ */
+export interface AppleIdToken {
+  iss: string;
+  aud: string;
+  exp: number;
+  iat: number;
+  sub: string;
+  email?: string;
+  email_verified?: boolean;
+}
